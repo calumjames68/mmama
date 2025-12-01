@@ -32,7 +32,10 @@ import {
   Banknote,
   BookOpen,
   BarChart3,
-  Gavel
+  Gavel,
+  Crown,
+  Clock,
+  PhoneIncoming
 } from 'lucide-react';
 
 // --- Constants & Data ---
@@ -88,7 +91,6 @@ const SKILLS_LIST = [
     { id: 'armbar', name: 'Flying Armbar', type: 'grappling', desc: 'High risk, high reward.' }
 ];
 
-// Enhanced Game Plans with Biases
 const GAME_PLANS = [
   { 
     id: 'balanced', 
@@ -266,12 +268,12 @@ const StatBar = ({ label, value, max = 100, color = "bg-blue-600", subLabel, ico
   </div>
 );
 
-const Card = ({ title, children, className = "", icon: Icon }) => (
-  <div className={`bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-6 shadow-xl ${className}`}>
+const Card = ({ title, children, className = "", icon: Icon, isGold }) => (
+  <div className={`${isGold ? 'bg-gradient-to-br from-yellow-900/40 to-slate-900 border-yellow-600/50' : 'bg-slate-900/80'} backdrop-blur border ${isGold ? '' : 'border-slate-800'} rounded-xl p-6 shadow-xl ${className} transition-all duration-500`}>
     {(title || Icon) && (
-      <div className="flex items-center gap-2 mb-4 border-b border-slate-700/50 pb-3">
-        {Icon && <Icon size={20} className="text-emerald-500" />}
-        <h3 className="font-bold text-slate-100 uppercase tracking-wide text-sm flex-1">{title}</h3>
+      <div className={`flex items-center gap-2 mb-4 border-b pb-3 ${isGold ? 'border-yellow-600/30' : 'border-slate-700/50'}`}>
+        {Icon && <Icon size={20} className={isGold ? "text-yellow-400" : "text-emerald-500"} />}
+        <h3 className={`font-bold uppercase tracking-wide text-sm flex-1 ${isGold ? 'text-yellow-100' : 'text-slate-100'}`}>{title}</h3>
       </div>
     )}
     {children}
@@ -284,7 +286,8 @@ const Button = ({ onClick, children, variant = "primary", disabled = false, clas
     primary: "bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-slate-800 disabled:text-slate-600 shadow-emerald-900/20",
     secondary: "bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:bg-slate-800 disabled:text-slate-600",
     danger: "bg-rose-900/80 hover:bg-rose-800 text-rose-100 border border-rose-800",
-    outline: "border border-slate-600 hover:bg-slate-800 text-slate-300 hover:border-slate-500"
+    outline: "border border-slate-600 hover:bg-slate-800 text-slate-300 hover:border-slate-500",
+    gold: "bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black shadow-yellow-900/20"
   };
 
   return (
@@ -312,18 +315,20 @@ export default function MMA_Simulator() {
     background: BACKGROUNDS[0],
     bodyType: BODY_TYPES[0], 
     stats: { ...BACKGROUNDS[0].stats },
-    skills: {}, // { skill_id: level }
+    skills: {}, 
     record: { w: 0, l: 0, d: 0 },
     funds: STARTING_FUNDS,
     rank: 'NR', 
     fanbase: 100,
-    history: []
+    history: [],
+    defenses: 0,
+    recoveryWeeks: 0
   });
 
-  // Global State
-  const [divisions, setDivisions] = useState({}); // Stores all rosters
+  const [divisions, setDivisions] = useState({});
   const [contract, setContract] = useState(null);
   const [currentEvent, setCurrentEvent] = useState(null);
+  const [shortNoticeOffer, setShortNoticeOffer] = useState(null);
 
   const [campData, setCampData] = useState({
     week: 1,
@@ -359,6 +364,65 @@ export default function MMA_Simulator() {
     setShake(true);
     setTimeout(() => setShake(false), 500);
   };
+
+  // --- Functions ---
+
+  const handleRest = () => {
+      // Advance 1 week
+      // Check for Short Notice offer (5% chance)
+      if (!shortNoticeOffer && player.recoveryWeeks <= 0 && randInt(0, 100) < 5) {
+          // Generate a random high-ish rank opponent
+          const divRoster = divisions[player.weightClass.name];
+          const oppIdx = randInt(0, 15); // Top 15 opp
+          const opp = divRoster[oppIdx];
+          
+          setShortNoticeOffer({
+              opponent: opp,
+              purse: 5000,
+              winBonus: 5000,
+              weeks: 2,
+              penalty: 0
+          });
+      }
+
+      setPlayer(prev => ({
+          ...prev,
+          recoveryWeeks: Math.max(0, prev.recoveryWeeks - 1)
+      }));
+  };
+
+  const acceptShortNotice = () => {
+      if (!shortNoticeOffer) return;
+      const offer = shortNoticeOffer;
+      setContract(offer);
+      
+      const eventName = `${ORG_NAME} Fight Night: Short Notice`;
+      
+      const fullCard = []; 
+      // Simplified card generation for short notice
+      fullCard.push({ 
+          type: "Short Notice Main Event", 
+          p1: { name: player.name, rank: player.rank }, 
+          p2: offer.opponent, 
+          weight: player.weightClass.name,
+          odds: calculateOdds(player.stats, offer.opponent.stats),
+          isPlayerFight: true 
+      });
+
+      setCurrentEvent({ name: eventName, card: fullCard });
+      
+      const startWeight = player.weightClass.limit * player.bodyType.weightMod;
+      setCampData({
+        week: 1,
+        maxWeeks: offer.weeks,
+        energy: 100,
+        weight: startWeight,
+        fitness: 0,
+        injuries: []
+      });
+      setShortNoticeOffer(null);
+      setGameState('CAMP');
+  }
 
   // --- Character Creation ---
   const CreationScreen = () => {
@@ -652,16 +716,56 @@ export default function MMA_Simulator() {
 
   // --- Dashboard ---
   const Dashboard = () => {
+    const isChamp = player.rank === 'C';
+
     return (
-      <div className="space-y-6 animate-fade-in">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-800/50 pb-6">
+      <div className="space-y-6 animate-fade-in relative">
+        {/* Short Notice Modal */}
+        {shortNoticeOffer && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div className="bg-slate-900 border border-emerald-500 rounded-xl p-6 shadow-2xl max-w-md w-full animate-bounce">
+                    <div className="flex items-center gap-3 mb-4 text-emerald-400">
+                        <PhoneIncoming size={32} className="animate-pulse" />
+                        <h2 className="text-xl font-bold uppercase">Short Notice Offer!</h2>
+                    </div>
+                    <p className="text-slate-300 mb-4">
+                        <span className="font-bold text-white">{shortNoticeOffer.opponent.name}</span> needs an opponent for <span className="text-emerald-400">Iron Cage Fight Night</span>.
+                    </p>
+                    <div className="bg-slate-950 p-4 rounded border border-slate-800 mb-6 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Opponent Rank</span>
+                            <span className="text-white">#{shortNoticeOffer.opponent.rank}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Prep Time</span>
+                            <span className="text-rose-400 font-bold">2 Weeks</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Purse</span>
+                            <span className="text-emerald-400 font-bold">{formatMoney(shortNoticeOffer.purse)}</span>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                        <Button onClick={() => setShortNoticeOffer(null)} variant="outline" className="flex-1">Decline</Button>
+                        <Button onClick={acceptShortNotice} className="flex-1">Accept Fight</Button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        <header className={`flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-6 ${isChamp ? 'border-yellow-600/50' : 'border-slate-800/50'}`}>
           <div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{ORG_NAME} Roster</div>
-            <h1 className="text-4xl font-black text-white leading-none">{player.name}</h1>
-            <h2 className="text-xl text-emerald-500 font-serif italic mt-1">"{player.nickname}"</h2>
+            <div className={`text-xs font-bold uppercase tracking-widest mb-1 ${isChamp ? 'text-yellow-500' : 'text-slate-500'}`}>
+                {isChamp ? <span className="flex items-center gap-1"><Crown size={12}/> World Champion</span> : `${ORG_NAME} Roster`}
+            </div>
+            <h1 className={`text-4xl font-black leading-none ${isChamp ? 'text-yellow-100' : 'text-white'}`}>{player.name}</h1>
+            <h2 className={`text-xl font-serif italic mt-1 ${isChamp ? 'text-yellow-500' : 'text-emerald-500'}`}>"{player.nickname}"</h2>
             <div className="flex gap-2 mt-2">
                <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">{player.weightClass.name}</span>
-               <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">Rank: {player.rank}</span>
+               <span className={`${isChamp ? 'bg-yellow-900/40 text-yellow-200 border border-yellow-600/30' : 'bg-slate-800 text-slate-300'} px-2 py-1 rounded text-xs font-bold`}>
+                   Rank: {player.rank}
+               </span>
+               {isChamp && <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold flex items-center gap-1"><Shield size={10}/> {player.defenses} Defenses</span>}
             </div>
           </div>
           <div className="flex gap-6 mt-6 md:mt-0">
@@ -682,7 +786,7 @@ export default function MMA_Simulator() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <Card title="Fighter Attributes" icon={Activity}>
+            <Card title="Fighter Attributes" icon={Activity} isGold={isChamp}>
                 <StatBar label="Striking" value={player.stats.striking} color="bg-rose-500" icon={Swords} />
                 <StatBar label="Grappling" value={player.stats.grappling} color="bg-blue-500" icon={Shield} />
                 <StatBar label="Stamina" value={player.stats.stamina} color="bg-amber-500" icon={Zap} />
@@ -690,7 +794,7 @@ export default function MMA_Simulator() {
                 <StatBar label="Discipline" value={player.stats.discipline} color="bg-purple-500" icon={Scale} />
             </Card>
             
-            <Card title="Skill Mastery" icon={BookOpen}>
+            <Card title="Skill Mastery" icon={BookOpen} isGold={isChamp}>
                 <div className="grid grid-cols-2 gap-2">
                     {Object.entries(player.skills).map(([id, val]) => {
                         const skillMeta = SKILLS_LIST.find(s => s.id === id);
@@ -712,20 +816,44 @@ export default function MMA_Simulator() {
           </div>
 
           <div className="space-y-6">
-            <Card title="Management" icon={Trophy} className="border-emerald-500/30 bg-emerald-900/5">
-              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-                You are currently inactive. Weekly gym fees are paused. Check the rankings board to find an opponent for your debut.
-              </p>
-              <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800 mb-4 flex justify-between items-center">
-                 <span className="text-slate-400 text-sm">Next Gym Fee (During Camp)</span>
-                 <span className="text-rose-400 font-mono font-bold">{formatMoney(GYM_FEES_PER_WEEK)}/wk</span>
-              </div>
-              <Button onClick={() => setGameState('LEADERBOARD')} className="w-full py-4 text-lg">
-                View Rankings & Offers
-              </Button>
+            <Card title="Management" icon={Trophy} className={`border-emerald-500/30 ${isChamp ? 'bg-yellow-900/10' : 'bg-emerald-900/5'}`} isGold={isChamp}>
+                {player.recoveryWeeks > 0 ? (
+                    <div className="text-center py-4">
+                        <div className="inline-block p-3 rounded-full bg-rose-900/20 text-rose-500 mb-2">
+                            <HeartPulse size={32} />
+                        </div>
+                        <h3 className="text-white font-bold text-lg mb-1">Medical Suspension</h3>
+                        <p className="text-slate-400 text-sm mb-4">You are currently recovering from your last fight.</p>
+                        <div className="bg-slate-950 p-3 rounded mb-4">
+                            <span className="text-slate-500 text-xs uppercase">Time Remaining</span>
+                            <div className="text-2xl font-mono text-white">{player.recoveryWeeks} Weeks</div>
+                        </div>
+                        <Button onClick={handleRest} className="w-full py-3" variant="secondary">
+                            Rest & Recover (1 Week)
+                        </Button>
+                    </div>
+                ) : (
+                    <>
+                        <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                            You are cleared to fight. Weekly gym fees are paused. Check the rankings board to find an opponent.
+                        </p>
+                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800 mb-4 flex justify-between items-center">
+                            <span className="text-slate-400 text-sm">Next Gym Fee (During Camp)</span>
+                            <span className="text-rose-400 font-mono font-bold">{formatMoney(GYM_FEES_PER_WEEK)}/wk</span>
+                        </div>
+                        <div className="flex gap-3">
+                            <Button onClick={handleRest} variant="secondary" className="flex-1">
+                                <Clock size={16}/> Wait 1 Week
+                            </Button>
+                            <Button onClick={() => setGameState('LEADERBOARD')} className="flex-[2] py-4 text-lg">
+                                Find Opponent
+                            </Button>
+                        </div>
+                    </>
+                )}
             </Card>
 
-             <Card title="Fight History" icon={Calendar}>
+             <Card title="Fight History" icon={Calendar} isGold={isChamp}>
                 {player.history.length === 0 ? (
                 <div className="text-center py-8 text-slate-600">
                     <Calendar className="mx-auto mb-2 opacity-20" size={32} />
@@ -848,7 +976,21 @@ export default function MMA_Simulator() {
              {divisionRoster.map((fighter) => {
                const isChamp = fighter.rank === 'C';
                const rankNum = isChamp ? 0 : fighter.rank;
-               const canFight = rankNum >= 25; 
+               // Unlock higher ranks as you climb
+               // If player rank is NR, show 25-30
+               // If player rank is X, show X-5 to X+5
+               let canFight = false;
+               if (player.rank === 'NR') {
+                   canFight = rankNum >= 25;
+               } else if (player.rank === 'C') {
+                   canFight = rankNum <= 5 && rankNum !== 0; // Champ fights top 5
+               } else {
+                   // Allow fighting within 5 ranks above or below
+                   // Also always allow fighting unranked if desperate? No, let's keep it tight
+                   canFight = (rankNum >= player.rank - 5) && (rankNum <= player.rank + 5);
+                   if (player.rank <= 5) canFight = rankNum <= 10; // Top 5 can fight anyone in top 10 + Champ
+                   if (rankNum === 0 && player.rank > 3) canFight = false; // Must be top 3 to fight champ
+               }
 
                return (
                  <div key={fighter.id} className={`grid grid-cols-12 p-3 items-center border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors ${canFight ? 'opacity-100' : 'opacity-50 grayscale-[0.5]'}`}>
@@ -1644,6 +1786,9 @@ export default function MMA_Simulator() {
            }
         }
 
+        // Store stoppage time only once
+        const stoppageTime = `${randInt(1, 4)}:${randInt(10, 59)}`;
+
         setFightResult({
             result: finalResult,
             method,
@@ -1653,10 +1798,10 @@ export default function MMA_Simulator() {
             newRank,
             opponentName: contract.opponent.name,
             stats: fightData.stats,
-            roundScores: roundScores
+            roundScores: roundScores,
+            stoppageTime: stoppageTime
         });
 
-        // Small delay before transition to Scoring
         setTimeout(() => setGameState('SCORING'), 2000);
     };
 
@@ -1812,7 +1957,7 @@ export default function MMA_Simulator() {
                 ) : (
                     <>
                         <div className={`transition-all duration-700 transform ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                            <div className="text-slate-400">Stopage at {randInt(1,4)}:{randInt(10,59)} of Round {fightData.round}</div>
+                            <div className="text-slate-400">Stopage at {fightResult.stoppageTime} of Round {fightData.round}</div>
                         </div>
                         <div className={`mt-12 transition-all duration-1000 transform ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
                             <div className="text-slate-500 uppercase tracking-widest text-sm mb-2">Winner by {fightResult.method}</div>
