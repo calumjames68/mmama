@@ -1,0 +1,2027 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Shield, 
+  Swords, 
+  Activity, 
+  Trophy, 
+  DollarSign, 
+  Calendar, 
+  User, 
+  Dumbbell, 
+  Skull, 
+  TrendingUp, 
+  HeartPulse, 
+  AlertTriangle,
+  Scale,
+  Zap,
+  Flame,
+  Lock,
+  ListOrdered,
+  Award,
+  Ticket,
+  Play,
+  Pause,
+  FastForward,
+  Mic2,
+  CheckCircle2,
+  XCircle,
+  BicepsFlexed,
+  ArrowRight,
+  ArrowLeft,
+  FileText,
+  Banknote,
+  BookOpen,
+  BarChart3,
+  Gavel
+} from 'lucide-react';
+
+// --- Constants & Data ---
+
+const STARTING_FUNDS = 2000;
+const GYM_FEES_PER_WEEK = 150;
+const ORG_NAME = "Iron Cage MMA";
+
+const WEIGHT_CLASSES = [
+  { name: 'Flyweight', limit: 125 },
+  { name: 'Bantamweight', limit: 135 },
+  { name: 'Featherweight', limit: 145 },
+  { name: 'Lightweight', limit: 155 },
+  { name: 'Welterweight', limit: 170 },
+  { name: 'Middleweight', limit: 185 },
+  { name: 'Light Heavyweight', limit: 205 },
+  { name: 'Heavyweight', limit: 265 }
+];
+
+const BODY_TYPES = [
+  { 
+    id: 'natural', 
+    name: 'Natural', 
+    desc: 'Fits the weight class perfectly. Easy cut, great stamina.', 
+    weightMod: 1.08, 
+    cutDifficulty: 1.0,
+    bonuses: { striking: 0, grappling: 0, stamina: 10, chin: 0, discipline: 5 }
+  },
+  { 
+    id: 'bully', 
+    name: 'Weight Bully', 
+    desc: 'Huge for the division. Brutal cut, but hits like a truck.', 
+    weightMod: 1.18, 
+    cutDifficulty: 0.7, 
+    bonuses: { striking: 5, grappling: 5, stamina: -10, chin: 5, discipline: -5 }
+  }
+];
+
+const BACKGROUNDS = [
+  { name: 'Kickboxer', stats: { striking: 70, grappling: 30, stamina: 60, chin: 50, discipline: 50 }, desc: 'Elite striking, weaker on the ground.' },
+  { name: 'Wrestler', stats: { striking: 40, grappling: 75, stamina: 70, chin: 55, discipline: 60 }, desc: 'Control the fight. High cardio.' },
+  { name: 'Jiu-Jitsu Ace', stats: { striking: 35, grappling: 80, stamina: 55, chin: 50, discipline: 50 }, desc: 'Dangerous off the back. Submission specialist.' },
+  { name: 'Brawler', stats: { striking: 65, grappling: 40, stamina: 50, chin: 75, discipline: 40 }, desc: 'Iron chin and heavy hands. Lacks technique.' },
+  { name: 'Balanced', stats: { striking: 55, grappling: 55, stamina: 55, chin: 55, discipline: 55 }, desc: 'Jack of all trades, master of none.' }
+];
+
+const SKILLS_LIST = [
+    { id: 'high_kick', name: 'High Kick', type: 'striking', desc: 'Head hunting specialist.' },
+    { id: 'overhand', name: 'Overhand Right', type: 'striking', desc: 'One punch knockout power.' },
+    { id: 'leg_kick', name: 'Calf Kick', type: 'striking', desc: 'Chop down the tree.' },
+    { id: 'double_leg', name: 'Double Leg Blast', type: 'grappling', desc: 'Explosive takedown entry.' },
+    { id: 'rnc', name: 'Rear Naked Choke', type: 'grappling', desc: 'The king of strangles.' },
+    { id: 'armbar', name: 'Flying Armbar', type: 'grappling', desc: 'High risk, high reward.' }
+];
+
+// Enhanced Game Plans with Biases
+const GAME_PLANS = [
+  { 
+    id: 'balanced', 
+    name: 'Balanced Approach', 
+    desc: 'No specific focus. React to the flow of the fight.', 
+    mod: { atk: 1.0, def: 1.0, sub: 1.0, stamina_burn: 1.0 },
+    bias: { strike: 0.5, takedown: 0.2, clinch: 0.1, sub: 0.5 } 
+  },
+  { 
+    id: 'counter', 
+    name: 'Counter Striker', 
+    desc: 'Wait for openings. High defense & accuracy, low volume.', 
+    mod: { atk: 0.8, def: 1.4, sub: 0.9, stamina_burn: 0.9 },
+    bias: { strike: 0.8, takedown: 0.05, clinch: 0.05, sub: 0.1 } 
+  },
+  { 
+    id: 'blitz', 
+    name: 'All-Out Aggression', 
+    desc: 'High volume & damage. Drains stamina rapidly.', 
+    mod: { atk: 1.5, def: 0.6, sub: 0.8, stamina_burn: 1.5 },
+    bias: { strike: 0.9, takedown: 0.1, clinch: 0.0, sub: 0.0 } 
+  },
+  { 
+    id: 'wrestle', 
+    name: 'Wrestle Heavy', 
+    desc: 'Force the takedown at all costs. Grinding control.', 
+    mod: { atk: 0.6, def: 1.1, sub: 1.1, stamina_burn: 1.2 },
+    bias: { strike: 0.1, takedown: 0.9, clinch: 0.2, sub: 0.3 } 
+  },
+  { 
+    id: 'clinch', 
+    name: 'Dirty Boxing', 
+    desc: 'Control posture and land short shots to drain stamina.', 
+    mod: { atk: 0.8, def: 1.0, sub: 1.0, stamina_burn: 1.1 },
+    bias: { strike: 0.2, takedown: 0.2, clinch: 0.8, sub: 0.1 } 
+  },
+  { 
+    id: 'submission', 
+    name: 'Submission Hunter', 
+    desc: 'Sacrifice position for submission attempts.', 
+    mod: { atk: 0.5, def: 0.8, sub: 1.6, stamina_burn: 1.0 },
+    bias: { strike: 0.1, takedown: 0.4, clinch: 0.1, sub: 0.95 } 
+  }
+];
+
+const FIRST_NAMES = [
+  "James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", 
+  "Christopher", "Daniel", "Matthew", "Anthony", "Donald", "Mark", "Paul", "Steven", "Andrew", "Kenneth", 
+  "Joshua", "Kevin", "Brian", "George", "Edward", "Ronald", "Timothy", "Jason", "Jeffrey", "Ryan", 
+  "Jacob", "Gary", "Nicholas", "Eric", "Jonathan", "Stephen", "Larry", "Justin", "Scott", "Brandon",
+  "Liam", "Noah", "Oliver", "Elijah", "Lucas", "Mason", "Logan", "Ethan", "Aiden", "Jackson",
+  "Dmitry", "Ivan", "Sergei", "Vladimir", "Yuri", "Carlos", "Jose", "Luis", "Jorge", "Rafael",
+  "Hiroshi", "Kenji", "Takeshi", "Yuki", "Kenta", "Thiago", "Bruno", "Gabriel", "Felipe", "Anderson"
+];
+
+const LAST_NAMES = [
+  "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", 
+  "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", 
+  "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", 
+  "Walker", "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
+  "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell", "Carter", "Roberts",
+  "Magomedov", "Nurmagomedov", "Volkov", "Petrov", "Sokolov", "Silva", "Santos", "Oliveira", "Souza", "Lima",
+  "Tanaka", "Suzuki", "Sato", "Takahashi", "Watanabe", "Kim", "Park", "Choi", "Jung", "Lee"
+];
+
+const NICKNAMES = [
+  "The Hammer", "The Anvil", "Chaos", "Lightning", "Thunder", "The Beast", "The Machine", "Iron", "Steel", 
+  "The Viper", "The Cobra", "The Eagle", "The Lion", "The Tiger", "The Pitbull", "The Bulldog", "The Shark", 
+  "The Assassin", "The Sniper", "The Ghost", "The Phantom", "The Titan", "The Giant", "The King", "The Prince", 
+  "The Joker", "The Magician", "The Prodigy", "The Natural", "The Chosen One", "Doomsday", "Nightmare", 
+  "The Grim Reaper", "The Executioner", "The Punisher", "The Gladiator", "The Warrior", "The Savage", 
+  "The Psycho", "The Maniac", "Dynamite", "TNT", "C4", "The Rocket", "The Missile", "The Tank", "The Wall", 
+  "The Fortress", "The Shield", "The Sword", "Hands of Stone", "Showtime", "No Mercy", "Lights Out"
+];
+
+// --- Helper Functions ---
+
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const formatMoney = (amount) => `$${amount.toLocaleString()}`;
+
+// Generate Stats for a filler fighter based on a rank tier
+const generateFillerStats = (tier) => {
+    const base = 100 - (tier * 10);
+    const body = BODY_TYPES[randInt(0, 1)];
+    const bg = BACKGROUNDS[randInt(0, 4)];
+    
+    return {
+        name: `${FIRST_NAMES[randInt(0, FIRST_NAMES.length-1)]} ${LAST_NAMES[randInt(0, LAST_NAMES.length-1)]}`,
+        stats: {
+            striking: randInt(base - 10, base + 10) + body.bonuses.striking,
+            grappling: randInt(base - 10, base + 10) + body.bonuses.grappling,
+            stamina: randInt(base - 5, base + 10) + body.bonuses.stamina,
+            chin: randInt(base - 5, base + 10) + body.bonuses.chin,
+            discipline: randInt(50, 100) + body.bonuses.discipline
+        },
+        bodyType: body,
+        bg: bg
+    };
+}
+
+const calculateOdds = (p1Stats, p2Stats) => {
+    const p1Total = Object.values(p1Stats).reduce((a,b)=>a+b, 0);
+    const p2Total = Object.values(p2Stats).reduce((a,b)=>a+b, 0);
+    
+    const diff = p1Total - p2Total;
+    const p1WinProb = 1 / (1 + Math.pow(10, -diff / 100)); 
+    
+    const getAmerican = (prob) => {
+        if (prob > 0.5) {
+            return Math.floor(-(prob / (1 - prob)) * 100);
+        } else {
+            return Math.floor(((1 - prob) / prob) * 100);
+        }
+    };
+
+    const p1Odds = getAmerican(p1WinProb);
+    const p2Odds = getAmerican(1 - p1WinProb);
+    
+    const format = (odd) => odd > 0 ? `+${odd}` : `${odd}`;
+    return { p1: format(p1Odds), p2: format(p2Odds) };
+};
+
+const generateRoster = (weightClass) => {
+  const roster = [];
+  for (let i = 0; i <= 30; i++) {
+    const isChamp = i === 0;
+    const rankSkillMod = isChamp ? 95 : 90 - (i * 1.5); 
+    let wins, losses, draws;
+    if (isChamp) { wins = randInt(15, 25); losses = randInt(0, 1); }
+    else if (i <= 5) { wins = randInt(12, 20); losses = randInt(1, 3); }
+    else if (i <= 15) { wins = randInt(10, 15); losses = randInt(3, 6); }
+    else if (i <= 25) { wins = randInt(6, 12); losses = randInt(4, 8); }
+    else { wins = randInt(2, 6); losses = randInt(0, 3); } 
+    draws = randInt(0, 1) > 0.8 ? 1 : 0;
+
+    const style = BACKGROUNDS[randInt(0, BACKGROUNDS.length - 1)];
+    const bodyType = BODY_TYPES[randInt(0, 1)]; // Random Body Type for AI
+    const skillBase = Math.max(30, rankSkillMod);
+
+    roster.push({
+      id: i,
+      name: `${FIRST_NAMES[randInt(0, FIRST_NAMES.length - 1)]} ${LAST_NAMES[randInt(0, LAST_NAMES.length - 1)]}`,
+      nickname: Math.random() > 0.4 ? `"${NICKNAMES[randInt(0, NICKNAMES.length - 1)]}"` : "",
+      rank: isChamp ? 'C' : i,
+      style: style.name,
+      bodyType: bodyType,
+      record: { w: wins, l: losses, d: draws },
+      weightClass: weightClass.name, 
+      stats: {
+        striking: randInt(skillBase - 10, skillBase + 10) + bodyType.bonuses.striking,
+        grappling: randInt(skillBase - 10, skillBase + 10) + bodyType.bonuses.grappling,
+        stamina: randInt(skillBase - 5, skillBase + 10) + bodyType.bonuses.stamina,
+        chin: randInt(skillBase - 5, skillBase + 10) + bodyType.bonuses.chin,
+        discipline: randInt(50, 100) + bodyType.bonuses.discipline
+      }
+    });
+  }
+  return roster;
+};
+
+// --- Components ---
+
+const StatBar = ({ label, value, max = 100, color = "bg-blue-600", subLabel, icon: Icon }) => (
+  <div className="mb-3 w-full group">
+    <div className="flex justify-between text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold group-hover:text-emerald-400 transition-colors">
+      <span className="flex items-center gap-1">{Icon && <Icon size={12}/>} {label}</span>
+      <span>{subLabel ? subLabel : `${Math.round(value)}/${max}`}</span>
+    </div>
+    <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden shadow-inner">
+      <div 
+        className={`h-full ${color} transition-all duration-700 ease-out`} 
+        style={{ width: `${Math.min(100, Math.max(0, (value / max) * 100))}%` }} 
+      />
+    </div>
+  </div>
+);
+
+const Card = ({ title, children, className = "", icon: Icon }) => (
+  <div className={`bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-6 shadow-xl ${className}`}>
+    {(title || Icon) && (
+      <div className="flex items-center gap-2 mb-4 border-b border-slate-700/50 pb-3">
+        {Icon && <Icon size={20} className="text-emerald-500" />}
+        <h3 className="font-bold text-slate-100 uppercase tracking-wide text-sm flex-1">{title}</h3>
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+const Button = ({ onClick, children, variant = "primary", disabled = false, className = "" }) => {
+  const baseStyle = "px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-95 shadow-lg";
+  const variants = {
+    primary: "bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-slate-800 disabled:text-slate-600 shadow-emerald-900/20",
+    secondary: "bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:bg-slate-800 disabled:text-slate-600",
+    danger: "bg-rose-900/80 hover:bg-rose-800 text-rose-100 border border-rose-800",
+    outline: "border border-slate-600 hover:bg-slate-800 text-slate-300 hover:border-slate-500"
+  };
+
+  return (
+    <button 
+      onClick={onClick} 
+      disabled={disabled} 
+      className={`${baseStyle} ${variants[variant]} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+// --- Main Application ---
+
+export default function MMA_Simulator() {
+  const [gameState, setGameState] = useState('CREATION');
+  const [shake, setShake] = useState(false); 
+  
+  // Player Data
+  const [player, setPlayer] = useState({
+    name: '',
+    nickname: '',
+    weightClass: WEIGHT_CLASSES[4], 
+    background: BACKGROUNDS[0],
+    bodyType: BODY_TYPES[0], 
+    stats: { ...BACKGROUNDS[0].stats },
+    skills: {}, // { skill_id: level }
+    record: { w: 0, l: 0, d: 0 },
+    funds: STARTING_FUNDS,
+    rank: 'NR', 
+    fanbase: 100,
+    history: []
+  });
+
+  // Global State
+  const [divisions, setDivisions] = useState({}); // Stores all rosters
+  const [contract, setContract] = useState(null);
+  const [currentEvent, setCurrentEvent] = useState(null);
+
+  const [campData, setCampData] = useState({
+    week: 1,
+    maxWeeks: 8,
+    energy: 100,
+    weight: 0, 
+    fitness: 0,
+    injuries: []
+  });
+
+  const [fightData, setFightData] = useState({
+    log: [],
+    round: 1,
+    pHealth: 100,
+    pStamina: 100,
+    pMomentum: 0, 
+    oHealth: 100,
+    oStamina: 100,
+    gamePlan: 'balanced',
+    aiAdaptation: 0,
+    position: 'STANDING',
+    campScore: 1,
+    isFinished: false,
+    stats: { p: { thrown: 0, landed: 0, tdAttempts: 0, tdLanded: 0, control: 0 }, o: { thrown: 0, landed: 0, tdAttempts: 0, tdLanded: 0, control: 0 } },
+    roundScores: [] 
+  });
+
+  const [fightResult, setFightResult] = useState(null);
+  const [fightSpeed, setFightSpeed] = useState(1500); 
+  const fightTimerRef = useRef(null);
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
+
+  // --- Character Creation ---
+  const CreationScreen = () => {
+    const [step, setStep] = useState(1);
+    const [tempName, setTempName] = useState('');
+    const [tempNick, setTempNick] = useState('');
+    const [selectedBg, setSelectedBg] = useState(0);
+    const [selectedWc, setSelectedWc] = useState(4);
+    const [selectedBody, setSelectedBody] = useState(0);
+
+    const getProjectedStats = () => {
+        const bgStats = BACKGROUNDS[selectedBg].stats;
+        const bodyBonuses = BODY_TYPES[selectedBody].bonuses;
+        return {
+            striking: bgStats.striking + bodyBonuses.striking,
+            grappling: bgStats.grappling + bodyBonuses.grappling,
+            stamina: bgStats.stamina + bodyBonuses.stamina,
+            chin: bgStats.chin + bodyBonuses.chin,
+            discipline: bgStats.discipline + bodyBonuses.discipline,
+        };
+    };
+
+    const finalizeCreation = () => {
+      if (!tempName) return;
+      const chosenClass = WEIGHT_CLASSES[selectedWc];
+      
+      const allDivisions = {};
+      WEIGHT_CLASSES.forEach(wc => {
+          allDivisions[wc.name] = generateRoster(wc);
+      });
+      setDivisions(allDivisions);
+
+      const initialSkills = {};
+      SKILLS_LIST.forEach(s => initialSkills[s.id] = 0);
+
+      setPlayer({
+        ...player,
+        name: tempName,
+        nickname: tempNick,
+        weightClass: chosenClass,
+        background: BACKGROUNDS[selectedBg],
+        bodyType: BODY_TYPES[selectedBody],
+        stats: getProjectedStats(),
+        skills: initialSkills,
+        rank: 'NR'
+      });
+      setGameState('INTRO');
+    };
+
+    const nextStep = () => {
+        if (step === 1 && !tempName) return; 
+        setStep(s => s + 1);
+    };
+
+    const prevStep = () => setStep(s => s - 1);
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in p-4 min-h-[80vh] flex flex-col">
+        <div className="text-center mb-4 pt-4">
+          <h1 className="text-4xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 uppercase italic">Fighter Profile</h1>
+          <div className="flex justify-center gap-2 mt-4">
+             {[1, 2, 3, 4].map(num => (
+                 <div key={num} className={`h-1.5 w-12 rounded-full transition-colors ${step >= num ? 'bg-emerald-500' : 'bg-slate-800'}`} />
+             ))}
+          </div>
+          <p className="text-slate-400 mt-2 text-sm uppercase tracking-widest font-bold">
+              {step === 1 ? "Identity" : step === 2 ? "Physique" : step === 3 ? "Background" : "Scouting Report"}
+          </p>
+        </div>
+
+        <div className="flex-1">
+            {step === 1 && (
+                <div className="space-y-6 animate-slide-in">
+                    <Card title="Personal Details" icon={User}>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Full Name</label>
+                                <input 
+                                className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                value={tempName} onChange={(e) => setTempName(e.target.value)} placeholder="e.g. John Doe" autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nickname</label>
+                                <input 
+                                className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                value={tempNick} onChange={(e) => setTempNick(e.target.value)} placeholder='e.g. "The Anvil"'
+                                />
+                            </div>
+                        </div>
+                    </Card>
+                    <Card title="Division" icon={Scale}>
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Select Weight Class</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {WEIGHT_CLASSES.map((wc, idx) => (
+                                <button 
+                                    key={wc.name} 
+                                    onClick={() => setSelectedWc(idx)}
+                                    className={`p-3 rounded border text-left transition-colors ${selectedWc === idx ? 'border-emerald-500 bg-emerald-900/20 text-white' : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800'}`}
+                                >
+                                    <div className="font-bold">{wc.name}</div>
+                                    <div className="text-xs opacity-70">{wc.limit} lbs</div>
+                                </button>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {step === 2 && (
+                <div className="space-y-6 animate-slide-in">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {BODY_TYPES.map((bt, idx) => (
+                            <div 
+                                key={bt.id}
+                                onClick={() => setSelectedBody(idx)}
+                                className={`cursor-pointer p-6 rounded-xl border-2 transition-all duration-300 relative overflow-hidden group ${selectedBody === idx ? 'border-emerald-500 bg-emerald-900/10 scale-[1.02] shadow-2xl shadow-emerald-900/20' : 'border-slate-800 bg-slate-900/50 hover:bg-slate-900 hover:border-slate-600'}`}
+                            >
+                                <div className="flex items-center gap-3 mb-3">
+                                    {bt.id === 'natural' ? <HeartPulse size={32} className={selectedBody === idx ? "text-emerald-400" : "text-slate-500"} /> : <BicepsFlexed size={32} className={selectedBody === idx ? "text-emerald-400" : "text-slate-500"} />}
+                                    <h3 className="text-2xl font-black text-white">{bt.name}</h3>
+                                </div>
+                                <p className="text-slate-400 text-sm mb-4 leading-relaxed">{bt.desc}</p>
+                                
+                                <div className="space-y-2">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Traits</div>
+                                    {Object.entries(bt.bonuses).map(([stat, val]) => (
+                                        val !== 0 && (
+                                            <div key={stat} className={`flex justify-between text-sm ${val > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                <span className="uppercase">{stat}</span>
+                                                <span className="font-mono">{val > 0 ? '+' : ''}{val}</span>
+                                            </div>
+                                        )
+                                    ))}
+                                    <div className={`flex justify-between text-sm ${bt.weightMod > 1.1 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                        <span className="uppercase">Weight Cut</span>
+                                        <span className="font-mono">{bt.weightMod > 1.1 ? 'HARD' : 'EASY'}</span>
+                                    </div>
+                                </div>
+                                {selectedBody === idx && <div className="absolute top-4 right-4 text-emerald-500"><CheckCircle2 /></div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {step === 3 && (
+                <div className="space-y-6 animate-slide-in">
+                    <Card title="Select Martial Arts Background" icon={Swords}>
+                        <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                            {BACKGROUNDS.map((bg, idx) => (
+                                <button 
+                                key={bg.name}
+                                onClick={() => setSelectedBg(idx)}
+                                className={`p-4 text-left rounded-lg border transition-all duration-200 flex flex-col gap-2 ${selectedBg === idx ? 'border-emerald-500 bg-emerald-900/20 translate-x-1' : 'border-slate-800 bg-slate-800/30 hover:bg-slate-800'}`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div className="font-bold text-slate-200 text-lg">{bg.name}</div>
+                                        {selectedBg === idx && <div className="text-emerald-500"><CheckCircle2 size={18}/></div>}
+                                    </div>
+                                    <div className="text-sm text-slate-500">{bg.desc}</div>
+                                    
+                                    <div className="flex gap-2 mt-2">
+                                        {Object.entries(bg.stats).slice(0,3).map(([key, val]) => (
+                                            <div key={key} className="bg-slate-950 px-2 py-1 rounded text-[10px] font-mono text-slate-400 border border-slate-800">
+                                                {key.substring(0,3).toUpperCase()}: {val}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {step === 4 && (
+                <div className="space-y-6 animate-slide-in">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-32 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        
+                        <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                            <div className="flex-1 space-y-6">
+                                <div>
+                                    <div className="text-xs font-bold text-emerald-500 uppercase tracking-widest mb-1">New Signing</div>
+                                    <h2 className="text-4xl font-black text-white">{tempName}</h2>
+                                    <div className="text-xl text-slate-400 italic">"{tempNick}"</div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                                        <div className="text-xs text-slate-500 uppercase">Division</div>
+                                        <div className="font-bold text-white">{WEIGHT_CLASSES[selectedWc].name}</div>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                                        <div className="text-xs text-slate-500 uppercase">Archetype</div>
+                                        <div className="font-bold text-white">{BACKGROUNDS[selectedBg].name}</div>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                                        <div className="text-xs text-slate-500 uppercase">Build</div>
+                                        <div className="font-bold text-white">{BODY_TYPES[selectedBody].name}</div>
+                                    </div>
+                                    <div className="bg-slate-950 p-3 rounded border border-slate-800">
+                                        <div className="text-xs text-slate-500 uppercase">Starting Cash</div>
+                                        <div className="font-bold text-emerald-400">{formatMoney(STARTING_FUNDS)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 bg-slate-950/50 rounded-xl p-4 border border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
+                                    <Activity size={14}/> Official Scouting Report
+                                </h3>
+                                <div className="space-y-3">
+                                    {Object.entries(getProjectedStats()).map(([key, val]) => (
+                                        <div key={key}>
+                                            <div className="flex justify-between text-xs uppercase mb-1">
+                                                <span className="text-slate-400">{key}</span>
+                                                <span className="font-mono font-bold text-white">{val}</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full ${val > 70 ? 'bg-emerald-500' : val > 50 ? 'bg-blue-500' : 'bg-slate-500'}`} 
+                                                    style={{ width: `${val}%` }} 
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        <div className="flex justify-between mt-8 pt-4 border-t border-slate-800">
+            {step > 1 ? (
+                <Button onClick={prevStep} variant="outline" className="px-6">
+                    <ArrowLeft size={16} /> Back
+                </Button>
+            ) : (
+                <div></div>
+            )}
+
+            {step < 4 ? (
+                <Button onClick={nextStep} disabled={step === 1 && !tempName} className="px-8">
+                    Next Step <ArrowRight size={16} />
+                </Button>
+            ) : (
+                <Button onClick={finalizeCreation} className="px-8 py-3 text-lg bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50 shadow-lg">
+                    Sign Contract <FileText size={18} />
+                </Button>
+            )}
+        </div>
+        
+        <style>{`
+            .animate-slide-in { animation: slideIn 0.3s ease-out; }
+            @keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        `}</style>
+      </div>
+    );
+  };
+
+  // --- Intro Screen ---
+  const IntroScreen = () => {
+    return (
+      <div className="max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in text-center">
+        <Award size={64} className="text-emerald-500 mb-4 animate-bounce" />
+        <h1 className="text-4xl font-black text-white">WELCOME TO THE SHOW</h1>
+        <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl max-w-lg">
+          <p className="text-lg text-slate-300 leading-relaxed mb-6">
+            Congratulations, <span className="font-bold text-white">{player.name}</span>. 
+            You have been signed to <span className="text-emerald-400 font-bold">{ORG_NAME}</span>.
+          </p>
+          <p className="text-slate-400 mb-6">
+            You are a <span className="text-emerald-400 font-bold">{player.bodyType.name}</span> {player.background.name}. 
+            {player.bodyType.id === 'bully' ? " The weight cut will be brutal, but your power is unmatched." : " You'll be fresh in the cage, but you might be smaller than your rivals."}
+          </p>
+          <div className="bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-lg">
+            <div className="text-sm text-emerald-400 uppercase font-bold tracking-widest">Signing Bonus</div>
+            <div className="text-3xl font-mono font-black text-white">{formatMoney(STARTING_FUNDS)}</div>
+          </div>
+        </div>
+        <Button onClick={() => setGameState('DASHBOARD')} className="px-12 py-4 text-xl">
+          Enter Gym
+        </Button>
+      </div>
+    )
+  }
+
+  // --- Dashboard ---
+  const Dashboard = () => {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-800/50 pb-6">
+          <div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{ORG_NAME} Roster</div>
+            <h1 className="text-4xl font-black text-white leading-none">{player.name}</h1>
+            <h2 className="text-xl text-emerald-500 font-serif italic mt-1">"{player.nickname}"</h2>
+            <div className="flex gap-2 mt-2">
+               <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">{player.weightClass.name}</span>
+               <span className="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-bold">Rank: {player.rank}</span>
+            </div>
+          </div>
+          <div className="flex gap-6 mt-6 md:mt-0">
+            <div className="text-center">
+              <div className="text-2xl font-black text-slate-200 font-mono">{player.record.w}-{player.record.l}-{player.record.d}</div>
+              <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Record</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-emerald-400 font-mono">{formatMoney(player.funds)}</div>
+              <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Funds</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-blue-400 font-mono">{player.fanbase.toLocaleString()}</div>
+              <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Fans</div>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Card title="Fighter Attributes" icon={Activity}>
+                <StatBar label="Striking" value={player.stats.striking} color="bg-rose-500" icon={Swords} />
+                <StatBar label="Grappling" value={player.stats.grappling} color="bg-blue-500" icon={Shield} />
+                <StatBar label="Stamina" value={player.stats.stamina} color="bg-amber-500" icon={Zap} />
+                <StatBar label="Chin" value={player.stats.chin} color="bg-stone-400" icon={Skull} />
+                <StatBar label="Discipline" value={player.stats.discipline} color="bg-purple-500" icon={Scale} />
+            </Card>
+            
+            <Card title="Skill Mastery" icon={BookOpen}>
+                <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(player.skills).map(([id, val]) => {
+                        const skillMeta = SKILLS_LIST.find(s => s.id === id);
+                        if (!skillMeta || val === 0) return null;
+                        return (
+                            <div key={id} className="bg-slate-950 p-2 rounded border border-slate-800 flex justify-between items-center text-xs">
+                                <span className="text-slate-300">{skillMeta.name}</span>
+                                <span className="text-emerald-400 font-bold">Lvl {val}</span>
+                            </div>
+                        )
+                    })}
+                    {Object.values(player.skills).every(v => v === 0) && (
+                        <div className="col-span-2 text-center text-slate-500 text-xs italic p-2">
+                            No specialized techniques learned yet.
+                        </div>
+                    )}
+                </div>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card title="Management" icon={Trophy} className="border-emerald-500/30 bg-emerald-900/5">
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                You are currently inactive. Weekly gym fees are paused. Check the rankings board to find an opponent for your debut.
+              </p>
+              <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800 mb-4 flex justify-between items-center">
+                 <span className="text-slate-400 text-sm">Next Gym Fee (During Camp)</span>
+                 <span className="text-rose-400 font-mono font-bold">{formatMoney(GYM_FEES_PER_WEEK)}/wk</span>
+              </div>
+              <Button onClick={() => setGameState('LEADERBOARD')} className="w-full py-4 text-lg">
+                View Rankings & Offers
+              </Button>
+            </Card>
+
+             <Card title="Fight History" icon={Calendar}>
+                {player.history.length === 0 ? (
+                <div className="text-center py-8 text-slate-600">
+                    <Calendar className="mx-auto mb-2 opacity-20" size={32} />
+                    <p className="italic text-sm">No fights recorded.</p>
+                </div>
+                ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    {player.history.slice().reverse().map((fight, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-slate-950/50 rounded-lg border border-slate-800/50 hover:border-slate-700 transition-colors text-sm">
+                        <div className="flex items-center gap-3">
+                            <span className={`font-black w-8 ${fight.result === 'Win' ? 'text-emerald-400' : fight.result === 'Draw' ? 'text-yellow-400' : 'text-rose-400'}`}>{fight.result.toUpperCase()}</span>
+                            <span className="text-slate-300 font-semibold">{fight.opponent}</span>
+                        </div>
+                        <span className="text-slate-500 text-xs font-mono bg-slate-900 px-2 py-1 rounded">{fight.method}</span>
+                    </div>
+                    ))}
+                </div>
+                )}
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Leaderboard & Matchmaking ---
+  const LeaderboardScreen = () => {
+    // Current Division Roster
+    const divisionRoster = divisions[player.weightClass.name] || [];
+
+    const offerFight = (fighter) => {
+      // Generate Event
+      const eventId = randInt(100, 200);
+      const headline = divisionRoster[0]; 
+      const contender = divisionRoster[1];
+      const eventName = `${ORG_NAME} ${eventId}: ${headline.name.split(' ').pop()} vs ${contender.name.split(' ').pop()}`;
+      
+      const fullCard = [];
+      const divisionNames = Object.keys(divisions);
+
+      // Helper to make fight from RANDOM divisions
+      const makeBout = (type, tier) => {
+          const randomDivName = divisionNames[randInt(0, divisionNames.length-1)];
+          const randomRoster = divisions[randomDivName];
+          
+          // Try to pick two near rank
+          const idx = Math.min(randomRoster.length - 2, Math.max(0, tier * 5)); // Roughly map tier 0-5 to rank 0-30
+          const f1 = randomRoster[idx];
+          const f2 = randomRoster[idx + 1] || randomRoster[idx - 1]; // Ensure existence
+
+          const odds = calculateOdds(f1.stats, f2.stats);
+          return { type, p1: f1, p2: f2, weight: randomDivName, odds };
+      };
+
+      fullCard.push(makeBout("Main Event", 0)); 
+      fullCard.push(makeBout("Co-Main Event", 1));
+      fullCard.push(makeBout("Main Card", 1));
+      fullCard.push(makeBout("Main Card", 2));
+      fullCard.push(makeBout("Prelim Headliner", 3));
+      fullCard.push(makeBout("Prelim", 3));
+      fullCard.push(makeBout("Prelim", 4));
+      fullCard.push(makeBout("Early Prelim", 5));
+      fullCard.push(makeBout("Early Prelim", 5));
+
+      // Insert Player Fight 
+      const playerOdds = calculateOdds(player.stats, fighter.stats);
+      fullCard.splice(6, 0, { 
+          type: "Prelim Card", 
+          p1: { name: player.name, rank: player.rank }, 
+          p2: fighter, 
+          weight: player.weightClass.name,
+          odds: playerOdds,
+          isPlayerFight: true 
+      });
+
+      const offer = {
+        opponent: fighter,
+        purse: 2000, 
+        winBonus: 2000,
+        weeks: randInt(6, 9),
+        penalty: 0
+      };
+
+      setContract(offer);
+      setCurrentEvent({ name: eventName, card: fullCard });
+      
+      const startWeight = player.weightClass.limit * player.bodyType.weightMod;
+
+      setCampData({
+        week: 1,
+        maxWeeks: offer.weeks,
+        energy: 100,
+        weight: startWeight,
+        fitness: 0,
+        injuries: []
+      });
+      setGameState('CAMP');
+    };
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+            <div>
+                <h2 className="text-2xl font-bold text-white">{player.weightClass.name} Rankings</h2>
+                <p className="text-slate-400 text-sm">Select an opponent. <span className="text-emerald-400">Ranks 25-30 Available.</span></p>
+            </div>
+            <Button variant="secondary" onClick={() => setGameState('DASHBOARD')}>Back to Gym</Button>
+        </div>
+        
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+           <div className="grid grid-cols-12 bg-slate-950 p-3 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-800">
+             <div className="col-span-1">Rank</div>
+             <div className="col-span-4">Fighter</div>
+             <div className="col-span-2 text-center">Rec</div>
+             <div className="col-span-3 text-center">Style/Build</div>
+             <div className="col-span-2 text-center">Action</div>
+           </div>
+           
+           <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+             {divisionRoster.map((fighter) => {
+               const isChamp = fighter.rank === 'C';
+               const rankNum = isChamp ? 0 : fighter.rank;
+               const canFight = rankNum >= 25; 
+
+               return (
+                 <div key={fighter.id} className={`grid grid-cols-12 p-3 items-center border-b border-slate-800/50 hover:bg-slate-800/50 transition-colors ${canFight ? 'opacity-100' : 'opacity-50 grayscale-[0.5]'}`}>
+                    <div className={`col-span-1 font-black ${isChamp ? 'text-yellow-500' : 'text-slate-400'}`}>{fighter.rank}</div>
+                    <div className="col-span-4">
+                      <div className="font-bold text-slate-200">{fighter.name}</div>
+                      {fighter.nickname && <div className="text-xs text-slate-500 italic">{fighter.nickname}</div>}
+                    </div>
+                    <div className="col-span-2 text-center font-mono text-slate-400 text-sm">{fighter.record.w}-{fighter.record.l}-{fighter.record.d}</div>
+                    <div className="col-span-3 text-center text-xs bg-slate-800 rounded py-1 text-slate-300">
+                        {fighter.style}
+                        <div className="text-[10px] text-slate-500">{fighter.bodyType.name}</div>
+                    </div>
+                    <div className="col-span-2 flex justify-center">
+                       {canFight ? (
+                         <button 
+                            onClick={() => offerFight(fighter)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors shadow-lg shadow-emerald-900/20"
+                         >
+                           OFFER
+                         </button>
+                       ) : (
+                         <Lock size={14} className="text-slate-600" />
+                       )}
+                    </div>
+                 </div>
+               );
+             })}
+           </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Camp Screen ---
+  const CampScreen = () => {
+    
+    // Logic to perform one activity tick
+    const performActivity = (type, currentCamp, currentStats) => {
+        if (currentCamp.energy < 20 && type !== 'recovery') return { newCamp: currentCamp, newStats: currentStats };
+
+        let newCamp = { ...currentCamp };
+        let newStats = { ...currentStats };
+
+        // Deduct energy first (unless recovery)
+        if (type !== 'recovery') newCamp.energy -= 20;
+
+        const bankruptMod = player.funds < 0 ? 0.5 : 1;
+        const success = (randInt(1, 100) + (player.stats.discipline / 5)) * bankruptMod;
+
+        // Apply Cut Difficulty Modifier
+        const weightLossEfficiency = player.bodyType.cutDifficulty; 
+
+        if (type === 'sparring') {
+            if (success > 30) {
+                newStats.striking += randInt(0, 1);
+                newStats.grappling += randInt(0, 1);
+                newCamp.fitness += randInt(2, 5);
+            }
+        } else if (type === 'cardio') {
+            const weightLost = randInt(1, 3) * bankruptMod * weightLossEfficiency;
+            newCamp.weight -= weightLost;
+            newStats.stamina += randInt(0, 1);
+            newCamp.fitness += randInt(3, 6);
+        } else if (type === 'strength') {
+            newCamp.weight += randInt(0, 1); // Muscle gain
+            newStats.chin += randInt(0, 1);
+            newCamp.fitness += randInt(2, 4);
+        } else if (type === 'recovery') {
+            newCamp.energy = Math.min(100, newCamp.energy + 50);
+            newCamp.fitness = Math.max(0, newCamp.fitness - 1);
+        }
+
+        return { newCamp, newStats };
+    };
+
+    const handleActivity = (type) => {
+        const { newCamp, newStats } = performActivity(type, campData, player.stats);
+        setCampData(newCamp);
+        setPlayer({ ...player, stats: newStats });
+    };
+
+    const handleDrill = (skillId) => {
+        if (campData.energy < 20) return;
+        let newCamp = { ...campData, energy: campData.energy - 20 };
+        let newSkills = { ...player.skills };
+        
+        // Improve Skill (Max 10)
+        if (newSkills[skillId] < 10) {
+            newSkills[skillId] += 1;
+        }
+        
+        setCampData(newCamp);
+        setPlayer({ ...player, skills: newSkills });
+    };
+
+    // Improved Auto-Trainer Logic
+    const autoTrainWeek = () => {
+        let tempCamp = { ...campData };
+        let tempStats = { ...player.stats };
+
+        while (tempCamp.energy >= 20) {
+            const weightDiff = tempCamp.weight - player.weightClass.limit;
+            let choice = 'sparring';
+
+            // Smart Priority System
+            if (weightDiff > 2) {
+                // We are heavy -> Cardio
+                choice = 'cardio';
+            } else if (weightDiff <= 0 && tempCamp.fitness >= 50) {
+                // On weight + fit -> Sparring (Skill) or Strength (Maintenance)
+                // If way underweight (> 2 lbs under), do Strength to maintain mass/power
+                if (weightDiff < -2) choice = 'strength';
+                else choice = 'sparring';
+            } else if (tempCamp.fitness < 50) {
+                // Need fitness -> Cardio
+                choice = 'cardio';
+            } else {
+                // General Training
+                const roll = Math.random();
+                if (roll < 0.5) choice = 'sparring';
+                else if (roll < 0.8) choice = 'strength';
+                else choice = 'cardio';
+            }
+            
+            const res = performActivity(choice, tempCamp, tempStats);
+            tempCamp = res.newCamp;
+            tempStats = res.newStats;
+        }
+
+        setCampData(tempCamp);
+        setPlayer({ ...player, stats: tempStats });
+    };
+
+    const nextWeek = () => {
+      const newFunds = player.funds - GYM_FEES_PER_WEEK;
+      setPlayer(prev => ({ ...prev, funds: newFunds }));
+
+      if (campData.week >= campData.maxWeeks) {
+        // Weigh In Logic
+        const diff = campData.weight - player.weightClass.limit;
+        if (diff > 0) {
+           const penalty = Math.floor(contract.purse * 0.2); // 20% fine
+           const cancelChance = Math.min(100, (diff / 5) * 80); // 5 lbs over = 80% chance cancel
+           
+           if (randInt(0, 100) < cancelChance) {
+              alert(`FIGHT CANCELED! You missed weight by ${diff.toFixed(1)} lbs. The opponent refused the bout.`);
+              setGameState('DASHBOARD');
+              return;
+           } else {
+              alert(`WEIGHT MISSED by ${diff.toFixed(1)} lbs! You have been fined ${formatMoney(penalty)}.`);
+              contract.penalty = penalty;
+           }
+        }
+        setGameState('EVENT_VIEW');
+      } else {
+        setCampData(prev => ({
+          ...prev,
+          week: prev.week + 1,
+          energy: 100, 
+          weight: Math.max(0, prev.weight - 0.2), // Metabolism burns a tiny bit naturally
+          fitness: Math.max(0, prev.fitness - 2) 
+        }));
+      }
+    };
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2"><Calendar className="text-emerald-500" /> Training Camp</h2>
+                <div className="flex items-center gap-2 text-sm mt-1">
+                   <span className="text-slate-400">Event:</span>
+                   <span className="text-white font-bold">{currentEvent.name}</span>
+                </div>
+            </div>
+            <div className="text-right">
+                <div className={`text-3xl font-black ${campData.energy < 30 ? 'text-rose-500' : 'text-emerald-400'} transition-colors`}>{campData.energy}%</div>
+                <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Weekly Energy</div>
+            </div>
+        </div>
+
+        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mb-6">
+             <div className="bg-emerald-500 h-full transition-all duration-500" style={{width: `${(campData.week / campData.maxWeeks) * 100}%`}}></div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card title="Camp Vitals" icon={HeartPulse}>
+                <div className="mb-6">
+                    <StatBar label="Weight" value={campData.weight} max={player.weightClass.limit * 1.2} subLabel={`${campData.weight.toFixed(1)} lbs`} color={campData.weight <= player.weightClass.limit ? "bg-emerald-500" : "bg-rose-500"} icon={Scale} />
+                    <div className="flex justify-between text-xs mt-1">
+                        <span className="text-slate-500">Current</span>
+                        <span className="text-emerald-400 font-bold">Target: {player.weightClass.limit} lbs</span>
+                    </div>
+                </div>
+                
+                <StatBar label="Peak Fitness" value={campData.fitness} max={100} color="bg-cyan-500" icon={Zap} />
+                <div className="text-xs text-slate-500 text-right mt-1">Fitness {'>'} 80 boosts Fight Stamina</div>
+
+                <div className="mt-6 pt-6 border-t border-slate-800">
+                    <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Current Funds</span>
+                        <span className={player.funds < 0 ? "text-rose-500 font-bold" : "text-emerald-400"}>{formatMoney(player.funds)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Weekly Gym Fee</span>
+                        <span className="text-rose-400">-{formatMoney(GYM_FEES_PER_WEEK)}</span>
+                    </div>
+                </div>
+            </Card>
+
+            <div className="md:col-span-2 space-y-4">
+                <Card title="Training Activities" icon={Dumbbell}>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button onClick={() => handleActivity('sparring')} disabled={campData.energy < 20} className="group p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 transition-all flex flex-col items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-slate-900 rounded-full group-hover:scale-110 transition-transform">
+                                <Swords className="text-rose-400" size={24} />
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-slate-200">Sparring</div>
+                                <div className="text-xs text-slate-500 mt-1">Skill ++ | Fitness +</div>
+                                <div className="text-xs text-rose-400 font-mono mt-2">-20 Energy</div>
+                            </div>
+                        </button>
+
+                        <button onClick={() => handleActivity('cardio')} disabled={campData.energy < 20} className="group p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 transition-all flex flex-col items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-slate-900 rounded-full group-hover:scale-110 transition-transform">
+                                <Activity className="text-yellow-400" size={24} />
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-slate-200">Weight Cut</div>
+                                <div className="text-xs text-slate-500 mt-1">Weight -- | Stamina +</div>
+                                <div className="text-xs text-rose-400 font-mono mt-2">-20 Energy</div>
+                            </div>
+                        </button>
+
+                        <button onClick={() => handleActivity('strength')} disabled={campData.energy < 20} className="group p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 transition-all flex flex-col items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-slate-900 rounded-full group-hover:scale-110 transition-transform">
+                                <Dumbbell className="text-blue-400" size={24} />
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-slate-200">Strength & Cond.</div>
+                                <div className="text-xs text-slate-500 mt-1">Weight + | Power +</div>
+                                <div className="text-xs text-rose-400 font-mono mt-2">-20 Energy</div>
+                            </div>
+                        </button>
+
+                        <button onClick={() => handleActivity('recovery')} disabled={campData.energy >= 100} className="group p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 transition-all flex flex-col items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-slate-900 rounded-full group-hover:scale-110 transition-transform">
+                                <HeartPulse className="text-emerald-400" size={24} />
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-slate-200">Recovery</div>
+                                <div className="text-xs text-slate-500 mt-1">Rest Body & Mind</div>
+                                <div className="text-xs text-emerald-400 font-mono mt-2">+50 Energy</div>
+                            </div>
+                        </button>
+                    </div>
+                </Card>
+
+                <Card title="Technical Drills (Specific Skills)" icon={BookOpen}>
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        {SKILLS_LIST.map(skill => (
+                            <button 
+                                key={skill.id}
+                                onClick={() => handleDrill(skill.id)}
+                                disabled={campData.energy < 20}
+                                className="flex justify-between items-center p-3 rounded bg-slate-950/50 border border-slate-800 hover:border-emerald-500 hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                            >
+                                <div className="text-left">
+                                    <div className="font-bold text-slate-200 text-sm">{skill.name}</div>
+                                    <div className="text-[10px] text-slate-500 uppercase">{skill.type}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-emerald-400 font-bold">Lvl {player.skills[skill.id]}</div>
+                                    <div className="text-[10px] text-rose-400">-20 En</div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </Card>
+            </div>
+        </div>
+
+        <div className="flex justify-between pt-4 gap-4">
+            <Button onClick={autoTrainWeek} variant="secondary" className="flex-1 text-slate-300" disabled={campData.energy < 20}>
+               <FastForward size={16} /> Auto-Train Week
+            </Button>
+            <Button onClick={nextWeek} className="flex-1 text-lg shadow-xl shadow-emerald-900/20">
+                {campData.week === campData.maxWeeks ? "Finish Camp" : `End Week ${campData.week}`}
+            </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Event View Screen ---
+  const EventViewScreen = () => {
+    return (
+      <div className="space-y-6 animate-fade-in py-8">
+        <div className="text-center mb-8">
+          <div className="text-emerald-500 font-bold tracking-widest text-sm uppercase mb-2">Live from the Arena</div>
+          <h1 className="text-4xl font-black text-white">{currentEvent.name}</h1>
+          <div className="flex justify-center items-center gap-2 mt-2 text-slate-400">
+             <Ticket size={16} />
+             <span>Sold Out • Pay-Per-View Event</span>
+          </div>
+        </div>
+
+        <div className="max-w-3xl mx-auto space-y-4">
+           {currentEvent.card.map((bout, idx) => (
+             <div key={idx} className={`relative overflow-hidden rounded-xl border ${bout.isPlayerFight ? 'border-emerald-500 bg-emerald-900/10 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'border-slate-800 bg-slate-900'}`}>
+                {bout.isPlayerFight && <div className="absolute top-0 right-0 bg-emerald-500 text-black text-xs font-bold px-2 py-1 rounded-bl">YOUR FIGHT</div>}
+                <div className="grid grid-cols-9 items-center p-4">
+                   <div className="col-span-3 text-right">
+                      <div className={`font-bold text-lg ${bout.isPlayerFight ? 'text-white' : 'text-slate-300'}`}>{bout.p1.name}</div>
+                      <div className="text-xs text-slate-500">#{bout.p1.rank === 'NR' ? 'NR' : bout.p1.rank}</div>
+                      <div className="text-xs font-mono text-emerald-400 mt-1">{bout.odds.p1}</div>
+                   </div>
+                   <div className="col-span-3 text-center">
+                        <span className="font-black text-slate-600 italic block">VS</span>
+                        <span className="text-[10px] text-slate-500 uppercase">{bout.weight}</span>
+                   </div>
+                   <div className="col-span-3 text-left">
+                      <div className={`font-bold text-lg ${bout.isPlayerFight ? 'text-white' : 'text-slate-300'}`}>{bout.p2.name}</div>
+                      <div className="text-xs text-slate-500">#{bout.p2.rank === 'NR' ? 'NR' : bout.p2.rank}</div>
+                      <div className="text-xs font-mono text-emerald-400 mt-1">{bout.odds.p2}</div>
+                   </div>
+                </div>
+                <div className="bg-black/20 text-center py-1 text-[10px] uppercase font-bold text-slate-500 tracking-widest">
+                   {bout.type}
+                </div>
+             </div>
+           ))}
+        </div>
+
+        <div className="flex justify-center pt-8">
+           <Button onClick={() => setGameState('FIGHT_PREP')} className="px-12 py-4 text-xl">
+              Head to Locker Room
+           </Button>
+        </div>
+      </div>
+    )
+  };
+
+  const FightPrepScreen = () => {
+    const [selectedPlan, setSelectedPlan] = useState('balanced');
+    const madeWeight = campData.weight <= player.weightClass.limit;
+
+    // Calculate Camp Score
+    const getCampScore = () => {
+        let score = 1.0;
+        if (madeWeight) score += 0.05; else score -= 0.1;
+        if (campData.fitness >= 90) score += 0.1;
+        else if (campData.fitness >= 70) score += 0.05;
+        else if (campData.fitness < 50) score -= 0.05;
+        else if (campData.fitness < 30) score -= 0.1;
+        return score;
+    };
+    
+    const campScoreVal = getCampScore();
+    const getGrade = (val) => {
+        if (val >= 1.1) return { grade: 'A+', color: 'text-emerald-400' };
+        if (val >= 1.05) return { grade: 'A', color: 'text-emerald-500' };
+        if (val >= 1.0) return { grade: 'B', color: 'text-blue-400' };
+        if (val >= 0.95) return { grade: 'C', color: 'text-yellow-500' };
+        return { grade: 'D', color: 'text-red-500' };
+    }
+    const campGrade = getGrade(campScoreVal);
+
+    const startFight = () => {
+        let pStamina = 100 * campScoreVal;
+        let pHealth = 100 * campScoreVal;
+
+        setFightData({
+            log: [],
+            round: 1,
+            pHealth: Math.min(100, pHealth),
+            pStamina: Math.min(100, pStamina),
+            pMomentum: 0,
+            oHealth: 100,
+            oStamina: 100,
+            gamePlan: selectedPlan,
+            turn: 0,
+            aiAdaptation: 0,
+            position: 'STANDING',
+            campScore: campScoreVal,
+            isFinished: false,
+            stats: { p: { thrown: 0, landed: 0, tdAttempts: 0, tdLanded: 0, control: 0 }, o: { thrown: 0, landed: 0, tdAttempts: 0, tdLanded: 0, control: 0 } },
+            roundScores: []
+        });
+        setGameState('FIGHT');
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto space-y-8 animate-fade-in py-8">
+            <div className="grid grid-cols-2 gap-4">
+                <Card title="Camp Grade" icon={Award}>
+                    <div className={`text-6xl font-black text-center ${campGrade.color}`}>
+                        {campGrade.grade}
+                    </div>
+                    <div className="text-center text-xs text-slate-400 mt-2">
+                        Stat Modifier: <span className="text-white font-bold">x{campScoreVal.toFixed(2)}</span>
+                    </div>
+                </Card>
+                <Card title="Official Weight" icon={Scale}>
+                    <div className={`text-4xl font-black text-center mt-2 ${madeWeight ? 'text-white' : 'text-red-500'}`}>
+                        {campData.weight.toFixed(1)}
+                    </div>
+                     <div className="text-center text-xs text-slate-400 mt-2">
+                        Target: {player.weightClass.limit} lbs
+                    </div>
+                </Card>
+            </div>
+
+            <Card title="Tactical Game Plan" icon={TrendingUp}>
+                <div className="space-y-3">
+                    {GAME_PLANS.map(plan => (
+                        <button 
+                            key={plan.id}
+                            onClick={() => setSelectedPlan(plan.id)}
+                            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 ${selectedPlan === plan.id ? 'border-emerald-500 bg-emerald-900/20 shadow-lg shadow-emerald-900/20 translate-x-1' : 'border-slate-800 bg-slate-900/50 hover:bg-slate-800'}`}
+                        >
+                            <div className="flex justify-between items-center mb-1">
+                                <div className="font-bold text-slate-100 text-lg">{plan.name}</div>
+                                {selectedPlan === plan.id && <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)]"></div>}
+                            </div>
+                            <div className="text-sm text-slate-500">{plan.desc}</div>
+                            <div className="flex gap-4 mt-2 text-xs font-mono text-slate-600">
+                                <span>ATK: x{plan.mod.atk}</span>
+                                <span>DEF: x{plan.mod.def}</span>
+                                <span>SUB: x{plan.mod.sub}</span>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </Card>
+
+            <Button onClick={startFight} className="w-full py-5 text-xl uppercase tracking-widest font-black shadow-rose-900/20 hover:shadow-rose-900/40 bg-rose-700 hover:bg-rose-600 border-none">
+                Walk Out
+            </Button>
+        </div>
+    );
+  };
+
+  // --- FIGHT ENGINE ---
+  const FightScreen = () => {
+    const scrollRef = useRef(null);
+
+    // Auto-Scroll Log
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [fightData.log]);
+
+    // Automatic Loop
+    useEffect(() => {
+        if (fightData.isFinished) return;
+
+        fightTimerRef.current = setTimeout(() => {
+            processTurn();
+        }, fightSpeed);
+
+        return () => clearTimeout(fightTimerRef.current);
+    }, [fightData]);
+
+    const addLog = (text, type = 'neutral') => {
+        setFightData(prev => ({
+            ...prev,
+            log: [...prev.log, { text, type }]
+        }));
+    };
+
+    const processTurn = () => {
+        const plan = GAME_PLANS.find(p => p.id === fightData.gamePlan).mod;
+        
+        // Apply Camp Score Multiplier to Stats
+        const campMod = fightData.campScore;
+
+        let pStats = { 
+            striking: player.stats.striking * plan.atk * campMod,
+            grappling: player.stats.grappling * plan.sub * campMod,
+            defense: (player.stats.striking + player.stats.grappling) / 2 * plan.def * campMod
+        };
+        
+        const aiMod = 1 + (fightData.aiAdaptation * 0.05);
+
+        let oStats = {
+            striking: contract.opponent.stats.striking * aiMod,
+            grappling: contract.opponent.stats.grappling * aiMod,
+            defense: (contract.opponent.stats.striking + contract.opponent.stats.grappling) / 2
+        };
+
+        pStats.striking *= (fightData.pStamina / 100);
+        oStats.striking *= (fightData.oStamina / 100);
+
+        // Initiative
+        const pInit = randInt(0, 50) + (fightData.pStamina / 2) + (fightData.pMomentum / 4);
+        const oInit = randInt(0, 50) + (fightData.oStamina / 2);
+        
+        let damage = 0;
+        let turnLog = "";
+        let turnType = 'neutral';
+        let newPHealth = fightData.pHealth;
+        let newOHealth = fightData.oHealth;
+        let newPStamina = Math.max(0, fightData.pStamina - randInt(1, 4));
+        let newOStamina = Math.max(0, fightData.oStamina - randInt(1, 4));
+        let newMomentum = fightData.pMomentum;
+        let newPos = fightData.position;
+        let pActionStats = { ...fightData.stats.p };
+        let oActionStats = { ...fightData.stats.o };
+
+        const isCritTurn = fightData.pMomentum >= 100;
+
+        // Player Initiative
+        if (pInit >= oInit || isCritTurn) {
+            // Check for Skill Triggers
+            let triggeredSkill = null;
+            Object.entries(player.skills).forEach(([id, level]) => {
+                if (level > 0 && randInt(0, 100) < level * 5) { // 5% chance per level
+                    triggeredSkill = SKILLS_LIST.find(s => s.id === id);
+                }
+            });
+
+            if (fightData.position === 'STANDING') {
+                const action = randInt(0, 10);
+                if (isCritTurn || action > 3) {
+                     // Strike
+                     pActionStats.thrown += 1;
+                     const hitChance = (pStats.striking / oStats.defense) * 60;
+                     if (isCritTurn || randInt(0, 100) < hitChance) {
+                        pActionStats.landed += 1;
+                        damage = isCritTurn ? randInt(15, 25) : randInt(5, 12) * (pStats.striking/50);
+                        
+                        // Apply Skill Bonus
+                        if (triggeredSkill && triggeredSkill.type === 'striking') {
+                            damage *= 1.5;
+                            turnLog = `CRITICAL ART: You connect with a perfect ${triggeredSkill.name}!`;
+                            turnType = 'crit';
+                            newMomentum += 20;
+                        } else {
+                            turnLog = isCritTurn ? `CRITICAL HIT! You rock ${contract.opponent.name} with a massive combo!` : `You land a clean strike.`;
+                            turnType = isCritTurn ? 'crit' : 'good';
+                        }
+                        
+                        newOHealth -= damage;
+                        newMomentum = isCritTurn ? 0 : Math.min(100, newMomentum + 15);
+                        if (isCritTurn || triggeredSkill) triggerShake();
+                     } else {
+                        turnLog = `You swing and miss.`;
+                        newMomentum -= 5;
+                     }
+                } else if (action > 1) {
+                    // Takedown Attempt
+                    pActionStats.tdAttempts += 1;
+                    if (triggeredSkill && triggeredSkill.id === 'double_leg') {
+                         pActionStats.tdLanded += 1;
+                         newPos = 'GROUND_TOP';
+                         newOStamina -= 15;
+                         turnLog = `PERFECT DOUBLE LEG! You blast through ${contract.opponent.name}'s hips!`;
+                         turnType = 'good';
+                         newMomentum += 20;
+                    } else if (pStats.grappling > oStats.grappling + randInt(-10, 10)) {
+                        pActionStats.tdLanded += 1;
+                        newPos = 'GROUND_TOP';
+                        newOStamina -= 10;
+                        turnLog = `You secure a takedown and land in top position!`;
+                        turnType = 'good';
+                        newMomentum += 10;
+                    } else {
+                        turnLog = `Your takedown is stuffed.`;
+                        newPStamina -= 5;
+                    }
+                } else {
+                    newPos = 'CLINCH';
+                    turnLog = `You close the distance and initiate a clinch.`;
+                }
+            } else if (fightData.position === 'CLINCH') {
+                if (randInt(0, 10) > 5) {
+                    pActionStats.control += 10;
+                    pActionStats.thrown += 1; pActionStats.landed += 1;
+                    damage = randInt(3, 8);
+                    newOHealth -= damage;
+                    turnLog = `You land dirty boxing shots in the clinch.`;
+                    turnType = 'good';
+                } else {
+                    newPos = 'STANDING';
+                    turnLog = `${contract.opponent.name} breaks the clinch.`;
+                }
+            } else if (fightData.position === 'GROUND_TOP') {
+                pActionStats.control += 15;
+                if (randInt(0, 10) > 7) {
+                    // Sub Attempt
+                    if (triggeredSkill && (triggeredSkill.id === 'rnc' || triggeredSkill.id === 'armbar')) {
+                        if (newOStamina < 60) {
+                            turnLog = `MASTER CLASS! You lock in the ${triggeredSkill.name}! It's tight!`;
+                            endFight('win', 'Submission'); return;
+                        }
+                    } else if (pStats.grappling > oStats.grappling && newOStamina < 40) {
+                        endFight('win', 'Submission'); return;
+                    } else {
+                        turnLog = `You fish for a submission but lose position!`;
+                        newPos = 'STANDING';
+                    }
+                } else {
+                    pActionStats.thrown += 1; pActionStats.landed += 1;
+                    damage = randInt(5, 15);
+                    newOHealth -= damage;
+                    turnLog = `Ground and Pound! You rain down shots.`;
+                    turnType = 'good';
+                }
+            } else if (fightData.position === 'GROUND_BOTTOM') {
+                if (randInt(0, 10) > 6) {
+                    newPos = 'STANDING';
+                    turnLog = `You kick off and stand back up!`;
+                } else {
+                    turnLog = `You try to control posture from the bottom.`;
+                }
+            }
+        } 
+        // Opponent Initiative
+        else {
+             if (fightData.position === 'STANDING') {
+                const action = randInt(0, 10);
+                if (action > 3) {
+                     // Strike
+                     oActionStats.thrown += 1;
+                     const hitChance = (oStats.striking / pStats.defense) * 60;
+                     if (randInt(0, 100) < hitChance) {
+                        oActionStats.landed += 1;
+                        damage = randInt(5, 15) * (oStats.striking/50);
+                        newPHealth -= damage;
+                        turnLog = `${contract.opponent.name} lands a hard strike!`;
+                        turnType = 'bad';
+                        newMomentum -= 10;
+                        if (damage > 12) triggerShake();
+                     } else {
+                        turnLog = `${contract.opponent.name} misses.`;
+                     }
+                } else {
+                    oActionStats.tdAttempts += 1;
+                    if (oStats.grappling > pStats.grappling + randInt(-10, 10)) {
+                        oActionStats.tdLanded += 1;
+                        newPos = 'GROUND_BOTTOM';
+                        newPStamina -= 10;
+                        turnLog = `${contract.opponent.name} takes you down!`;
+                        turnType = 'bad';
+                    } else {
+                        turnLog = `You stuff the takedown attempt.`;
+                    }
+                }
+            } else if (fightData.position === 'CLINCH') {
+                oActionStats.control += 10;
+                oActionStats.thrown += 1; oActionStats.landed += 1;
+                damage = randInt(3, 8);
+                newPHealth -= damage;
+                turnLog = `${contract.opponent.name} knees you in the clinch.`;
+                turnType = 'bad';
+            } else if (fightData.position === 'GROUND_BOTTOM') {
+                 oActionStats.control += 15;
+                 oActionStats.thrown += 1; oActionStats.landed += 1;
+                 damage = randInt(5, 12);
+                 newPHealth -= damage;
+                 turnLog = `${contract.opponent.name} is smashing you from top position!`;
+                 turnType = 'bad';
+                 triggerShake();
+            } else if (fightData.position === 'GROUND_TOP') {
+                 newPos = 'STANDING';
+                 turnLog = `${contract.opponent.name} explodes and stands up.`;
+            }
+        }
+
+        const newState = {
+            ...fightData,
+            log: [...fightData.log, { text: turnLog, type: turnType }],
+            pHealth: Math.max(0, newPHealth),
+            oHealth: Math.max(0, newOHealth),
+            pStamina: newPStamina,
+            oStamina: newOStamina,
+            pMomentum: Math.max(0, newMomentum),
+            position: newPos,
+            turn: fightData.turn + 1,
+            aiAdaptation: fightData.aiAdaptation + 1,
+            stats: { p: pActionStats, o: oActionStats }
+        };
+
+        if (newPHealth <= 0) {
+            setFightData({ ...newState, isFinished: true });
+            endFight('loss', 'KO/TKO');
+        } else if (newOHealth <= 0) {
+            setFightData({ ...newState, isFinished: true });
+            endFight('win', 'KO/TKO');
+        } else if (newState.turn >= 15) { 
+            if (fightData.round >= 3) {
+                // Determine winner of last round for scoring purposes
+                const pDamage = 100 - newOHealth;
+                const oDamage = 100 - newPHealth;
+                let roundWinner = 'draw';
+                if(pDamage > oDamage + 5) roundWinner = 'p';
+                else if(oDamage > pDamage + 5) roundWinner = 'o';
+                else if(fightData.stats.p.control > fightData.stats.o.control) roundWinner = 'p';
+                else if(fightData.stats.o.control > fightData.stats.p.control) roundWinner = 'o';
+                
+                const finalRoundScores = [...fightData.roundScores, roundWinner];
+                
+                setFightData({ ...newState, roundScores: finalRoundScores, isFinished: true });
+                
+                // Calculate Decision
+                // We need to pass the roundScores to endFight to calculate official scorecards
+                endFight('decision', 'Decision', finalRoundScores); 
+            } else {
+                nextRound(newState);
+            }
+        } else {
+            setFightData(newState);
+        }
+    };
+
+    const nextRound = (currentData) => {
+        // Determine winner of this round
+        const pDamage = 100 - currentData.oHealth; // Total damage so far, simplistic tracking
+        const oDamage = 100 - currentData.pHealth;
+        // In a real app we'd track damage per round, here we approximate with totals for simplicity
+        // or we could add a `roundStartHealth` to track delta. 
+        // Let's just use random variance + health delta for now.
+        
+        let roundWinner = 'draw';
+        // Simple logic: who has more health remaining?
+        if(currentData.pHealth > currentData.oHealth) roundWinner = 'p';
+        else if(currentData.oHealth > currentData.pHealth) roundWinner = 'o';
+        
+        setFightData(prev => ({
+            ...currentData,
+            log: [...currentData.log, { text: `--- END OF ROUND ${currentData.round} ---`, type: 'info' }],
+            round: prev.round + 1,
+            turn: 0,
+            pStamina: Math.min(100, prev.pStamina + 20),
+            oStamina: Math.min(100, prev.oStamina + 20),
+            pMomentum: Math.max(0, prev.pMomentum - 20),
+            position: 'STANDING',
+            roundScores: [...prev.roundScores, roundWinner]
+        }));
+    };
+
+    const endFight = (result, method, roundScores = []) => {
+        let finalResult = result;
+        let scores = [];
+
+        if (method === 'Decision') {
+            // Generate 3 scores based on roundWinners
+            let pRoundsWon = roundScores.filter(r => r === 'p').length;
+            let oRoundsWon = roundScores.filter(r => r === 'o').length;
+            
+            // Determine actual winner
+            if (pRoundsWon > oRoundsWon) finalResult = 'win';
+            else if (oRoundsWon > pRoundsWon) finalResult = 'loss';
+            else finalResult = 'draw';
+
+            // Generate Scorecards
+            for(let i=0; i<3; i++) {
+                let pScore = 0;
+                let oScore = 0;
+                roundScores.forEach(r => {
+                    // Small chance of judge error
+                    let w = r;
+                    if(randInt(0,100) < 5) w = (r === 'p' ? 'o' : 'p'); 
+                    
+                    if(w === 'p') { pScore += 10; oScore += 9; }
+                    else if(w === 'o') { pScore += 9; oScore += 10; }
+                    else { pScore += 10; oScore += 10; }
+                });
+                scores.push({p: pScore, o: oScore});
+            }
+        }
+
+        // Prepare Result Data
+        let purse = contract.purse - (contract.penalty || 0);
+        let winBonus = 0;
+        let fanChange = 0;
+        
+        if (finalResult === 'win') {
+            winBonus = contract.winBonus;
+            fanChange = randInt(50, 200);
+        } else if (finalResult === 'loss') {
+            fanChange = -randInt(0, 50);
+        }
+
+        let newRank = player.rank;
+        if (finalResult === 'win') {
+           if (player.rank === 'NR' || player.rank > contract.opponent.rank) {
+              newRank = contract.opponent.rank;
+           }
+        }
+
+        setFightResult({
+            result: finalResult,
+            method,
+            scores,
+            earnings: { show: purse, win: winBonus, penalty: contract.penalty || 0, gym: GYM_FEES_PER_WEEK * campData.maxWeeks },
+            fanChange,
+            newRank,
+            opponentName: contract.opponent.name,
+            stats: fightData.stats,
+            roundScores: roundScores
+        });
+
+        // Small delay before transition to Scoring
+        setTimeout(() => setGameState('SCORING'), 2000);
+    };
+
+    return (
+        <div className={`flex flex-col h-full space-y-4 ${shake ? 'animate-shake' : ''}`}>
+             {/* HUD */}
+            <div className="grid grid-cols-2 gap-4 bg-slate-900/90 backdrop-blur p-4 rounded-xl border border-slate-700 shadow-2xl relative z-10">
+                <div className="border-r border-slate-800 pr-4">
+                    <div className="flex justify-between items-end mb-2">
+                        <div className="text-lg font-bold text-white">{player.name}</div>
+                        <div className="text-xs text-slate-400 font-mono">YOU</div>
+                    </div>
+                    
+                    <div className="relative h-4 bg-slate-950 rounded-full overflow-hidden mb-1.5 shadow-inner">
+                        <div className={`h-full transition-all duration-300 ${fightData.pHealth < 30 ? 'bg-rose-600 animate-pulse' : 'bg-emerald-500'}`} style={{ width: `${fightData.pHealth}%` }} />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        <div className="w-1/2 relative h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                            <div className="h-full bg-yellow-400 transition-all duration-300" style={{ width: `${fightData.pStamina}%` }} />
+                        </div>
+                        {/* Momentum Bar */}
+                        <div className="w-1/2 relative h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                            <div className={`h-full transition-all duration-300 ${fightData.pMomentum >= 100 ? 'bg-cyan-400 animate-pulse' : 'bg-blue-600'}`} style={{ width: `${fightData.pMomentum}%` }} />
+                        </div>
+                    </div>
+
+                </div>
+                
+                <div className="pl-4 text-right">
+                    <div className="flex justify-between items-end mb-2">
+                        <div className="text-xs text-slate-400 font-mono">OPPONENT</div>
+                        <div className="text-lg font-bold text-white">{contract.opponent.name}</div>
+                    </div>
+
+                    <div className="relative h-4 bg-slate-950 rounded-full overflow-hidden mb-1.5 shadow-inner">
+                        <div className={`h-full transition-all duration-300 ${fightData.oHealth < 30 ? 'bg-rose-600 animate-pulse' : 'bg-rose-500'}`} style={{ width: `${fightData.oHealth}%` }} />
+                    </div>
+                     <div className="relative h-1.5 bg-slate-950 rounded-full overflow-hidden w-2/3 ml-auto">
+                        <div className="h-full bg-yellow-400 transition-all duration-300" style={{ width: `${fightData.oStamina}%` }} />
+                    </div>
+                </div>
+            </div>
+
+            <div className="text-center text-slate-300 font-mono text-sm border-b border-slate-800 pb-2 flex justify-between px-4 items-center">
+                <span>R:{fightData.round}</span>
+                <span className="bg-slate-800 px-3 py-1 rounded text-cyan-400 font-bold uppercase tracking-widest text-xs">
+                    POS: {fightData.position}
+                </span>
+                <span>Turn:{fightData.turn}</span>
+            </div>
+
+            {/* Log */}
+            <div ref={scrollRef} className="flex-1 bg-gradient-to-b from-slate-950 to-slate-900 p-4 rounded-xl border border-slate-800 overflow-y-auto font-mono text-sm space-y-2.5 h-64 md:h-96 shadow-inner custom-scrollbar">
+                {fightData.log.length === 0 && <div className="text-slate-600 text-center italic mt-20">The cage door closes. The referee signals for the fight to start...</div>}
+                {fightData.log.map((entry, i) => (
+                    <div key={i} className={`p-3 rounded-r-lg border-l-4 text-shadow-sm animation-slide-in ${
+                        entry.type === 'good' ? 'border-emerald-500 bg-emerald-900/10 text-emerald-100' : 
+                        entry.type === 'bad' ? 'border-rose-500 bg-rose-900/10 text-rose-100' : 
+                        entry.type === 'crit' ? 'border-cyan-400 bg-cyan-900/20 text-cyan-100 font-bold border-l-8' :
+                        entry.type === 'info' ? 'border-yellow-500 bg-yellow-900/10 text-yellow-100 text-center font-bold' :
+                        'border-slate-600 text-slate-300'
+                    }`}>
+                        {entry.text}
+                    </div>
+                ))}
+            </div>
+
+            {/* Controls */}
+            <div className="grid grid-cols-1 gap-4">
+                 <div className="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-2">
+                        <div className="text-xs text-slate-400 font-mono uppercase">Speed</div>
+                        <div className="flex gap-1">
+                            <button onClick={() => setFightSpeed(2000)} className={`p-1 rounded ${fightSpeed === 2000 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Play size={12}/></button>
+                            <button onClick={() => setFightSpeed(800)} className={`p-1 rounded ${fightSpeed === 800 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}><FastForward size={12}/></button>
+                        </div>
+                    </div>
+                    
+                    <div className="text-xs text-slate-500 flex items-center gap-2">
+                        <TrendingUp size={14} className="text-emerald-500" /> 
+                        Plan: <span className="text-emerald-400 uppercase font-bold">{GAME_PLANS.find(p=>p.id===fightData.gamePlan).name}</span>
+                    </div>
+                 </div>
+            </div>
+            
+            <style>{`
+                .text-shadow-sm { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+                    20%, 40%, 60%, 80% { transform: translateX(4px); }
+                }
+                .animate-shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+                .animation-slide-in { animation: slideIn 0.2s ease-out; }
+                @keyframes slideIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+            `}</style>
+        </div>
+    );
+  };
+
+  // --- 7. SCORING SCREEN ---
+  const ScoringScreen = () => {
+    const [step, setStep] = useState(0);
+
+    useEffect(() => {
+        // Dramatic sequence
+        if (fightResult.method === 'Decision') {
+            const timer = setTimeout(() => {
+                setStep(s => s + 1);
+            }, 1500);
+            return () => clearTimeout(timer);
+        } else {
+            const timer = setTimeout(() => {
+                setStep(s => s + 1);
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [step]);
+
+    return (
+        <div className="max-w-xl mx-auto flex flex-col items-center justify-center min-h-[70vh] space-y-8 animate-fade-in text-center p-4">
+            <div className={`transition-opacity duration-1000 ${step >= 1 ? 'opacity-100' : 'opacity-0'}`}>
+                <Mic2 size={64} className="text-slate-600 mb-6 mx-auto animate-pulse" />
+                <h2 className="text-xl font-bold text-slate-400 uppercase tracking-widest mb-8">Official Decision</h2>
+            </div>
+            
+            <div className="space-y-4 w-full">
+                {fightResult.method === 'Decision' ? (
+                    <>
+                        <div className={`transition-all duration-700 transform ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                            <div className="text-white text-lg">Judge 1 scores the contest...</div>
+                            <div className="font-mono font-bold text-2xl text-emerald-400">{fightResult.scores[0].p} - {fightResult.scores[0].o}</div>
+                        </div>
+                        <div className={`transition-all duration-700 transform ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                            <div className="text-white text-lg">Judge 2 scores the contest...</div>
+                            <div className="font-mono font-bold text-2xl text-emerald-400">{fightResult.scores[1].p} - {fightResult.scores[1].o}</div>
+                        </div>
+                        <div className={`transition-all duration-700 transform ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                            <div className="text-white text-lg">Judge 3 scores the contest...</div>
+                            <div className="font-mono font-bold text-2xl text-emerald-400">{fightResult.scores[2].p} - {fightResult.scores[2].o}</div>
+                        </div>
+                        <div className={`mt-12 transition-all duration-1000 transform ${step >= 5 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
+                            <div className="text-slate-500 uppercase tracking-widest text-sm mb-2">Your Winner by {fightResult.method}</div>
+                            <div className={`text-5xl font-black ${fightResult.result === 'win' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                {fightResult.result === 'win' ? player.name.toUpperCase() : fightResult.opponentName.toUpperCase()}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className={`transition-all duration-700 transform ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                            <div className="text-slate-400">Stopage at {randInt(1,4)}:{randInt(10,59)} of Round {fightData.round}</div>
+                        </div>
+                        <div className={`mt-12 transition-all duration-1000 transform ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
+                            <div className="text-slate-500 uppercase tracking-widest text-sm mb-2">Winner by {fightResult.method}</div>
+                            <div className={`text-5xl font-black ${fightResult.result === 'win' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                {fightResult.result === 'win' ? player.name.toUpperCase() : fightResult.opponentName.toUpperCase()}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {( (fightResult.method === 'Decision' && step >= 6) || (fightResult.method !== 'Decision' && step >= 4) ) && (
+                <Button onClick={() => setGameState('POST_FIGHT')} className="mt-8 mx-auto px-12 py-4 text-xl animate-bounce">
+                    View Summary
+                </Button>
+            )}
+        </div>
+    );
+  };
+
+  // --- 8. POST FIGHT SCREEN ---
+  const PostFightScreen = () => {
+    const totalEarnings = fightResult.earnings.show + fightResult.earnings.win - fightResult.earnings.penalty - fightResult.earnings.gym;
+
+    const commitResults = () => {
+        // Commit changes to player state now
+        const newHistory = [...player.history, { opponent: fightResult.opponentName, result: fightResult.result === 'win' ? 'Win' : fightResult.result === 'loss' ? 'Loss' : 'Draw', method: fightResult.method }];
+        let newRecord = { ...player.record };
+        if (fightResult.result === 'win') newRecord.w++;
+        if (fightResult.result === 'loss') newRecord.l++;
+        if (fightResult.result === 'draw') newRecord.d++;
+
+        setPlayer(prev => ({
+            ...prev,
+            funds: prev.funds + totalEarnings,
+            fanbase: prev.fanbase + fightResult.fanChange,
+            rank: fightResult.newRank,
+            history: newHistory,
+            record: newRecord
+        }));
+        setGameState('DASHBOARD');
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in p-4">
+            <div className="text-center mb-8">
+                <div className={`inline-flex items-center justify-center p-4 rounded-full mb-4 ${fightResult.result === 'win' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                    {fightResult.result === 'win' ? <Trophy size={48} /> : <XCircle size={48} />}
+                </div>
+                <h1 className="text-4xl font-black text-white uppercase">{fightResult.result === 'win' ? 'Victory' : 'Defeat'}</h1>
+            </div>
+
+            {/* NEW: Stats Tab */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card title="Match Statistics" icon={BarChart3}>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center text-sm font-bold border-b border-slate-700 pb-2">
+                            <span className="text-emerald-400">{player.name}</span>
+                            <span className="text-slate-500">VS</span>
+                            <span className="text-rose-400">{fightResult.opponentName}</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <div>
+                                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>{fightResult.stats.p.landed}/{fightResult.stats.p.thrown}</span>
+                                    <span className="uppercase font-bold text-slate-500">Striking</span>
+                                    <span>{fightResult.stats.o.landed}/{fightResult.stats.o.thrown}</span>
+                                </div>
+                                <div className="flex gap-1 h-2 bg-slate-800 rounded overflow-hidden">
+                                    <div className="bg-emerald-500" style={{ width: `${(fightResult.stats.p.landed / (fightResult.stats.p.landed + fightResult.stats.o.landed + 1)) * 100}%`}}></div>
+                                    <div className="bg-rose-500 flex-1"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>{fightResult.stats.p.tdLanded}/{fightResult.stats.p.tdAttempts}</span>
+                                    <span className="uppercase font-bold text-slate-500">Takedowns</span>
+                                    <span>{fightResult.stats.o.tdLanded}/{fightResult.stats.o.tdAttempts}</span>
+                                </div>
+                                <div className="flex gap-1 h-2 bg-slate-800 rounded overflow-hidden">
+                                    <div className="bg-emerald-500" style={{ width: `${(fightResult.stats.p.tdLanded / (fightResult.stats.p.tdLanded + fightResult.stats.o.tdLanded + 1)) * 100}%`}}></div>
+                                    <div className="bg-rose-500 flex-1"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>{Math.round(fightResult.stats.p.control / 3)}s</span>
+                                    <span className="uppercase font-bold text-slate-500">Control Time</span>
+                                    <span>{Math.round(fightResult.stats.o.control / 3)}s</span>
+                                </div>
+                                <div className="flex gap-1 h-2 bg-slate-800 rounded overflow-hidden">
+                                    <div className="bg-emerald-500" style={{ width: `${(fightResult.stats.p.control / (fightResult.stats.p.control + fightResult.stats.o.control + 1)) * 100}%`}}></div>
+                                    <div className="bg-rose-500 flex-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Scorecards */}
+                {fightResult.method === 'Decision' && (
+                    <Card title="Official Scorecards" icon={Gavel}>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-slate-500 uppercase bg-slate-950">
+                                    <tr>
+                                        <th className="p-2">Round</th>
+                                        <th className="p-2 text-center">Winner</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {fightResult.roundScores.map((winner, i) => (
+                                        <tr key={i} className="border-b border-slate-800">
+                                            <td className="p-2 font-mono text-slate-300">Round {i+1}</td>
+                                            <td className="p-2 text-center font-bold">
+                                                {winner === 'p' ? <span className="text-emerald-400">YOU</span> : winner === 'o' ? <span className="text-rose-400">OPP</span> : <span className="text-slate-500">DRAW</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div className="text-xs text-center text-slate-500 mt-4 italic">
+                                * Aggregate view of judge preference per round.
+                            </div>
+                        </div>
+                    </Card>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <Card title="Financial Breakdown" icon={DollarSign}>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between text-slate-400">
+                            <span>Show Purse</span>
+                            <span className="text-white font-mono">{formatMoney(fightResult.earnings.show)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                            <span>Win Bonus</span>
+                            <span className="text-emerald-400 font-mono">+{formatMoney(fightResult.earnings.win)}</span>
+                        </div>
+                        {fightResult.earnings.penalty > 0 && (
+                            <div className="flex justify-between text-rose-400">
+                                <span>Weight Penalty</span>
+                                <span className="font-mono">-{formatMoney(fightResult.earnings.penalty)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between text-slate-500">
+                            <span>Camp Fees</span>
+                            <span className="font-mono">-{formatMoney(fightResult.earnings.gym)}</span>
+                        </div>
+                        <div className="border-t border-slate-700 pt-2 mt-2 flex justify-between font-bold text-lg">
+                            <span className="text-white">Net Earnings</span>
+                            <span className={totalEarnings > 0 ? "text-emerald-400" : "text-rose-400"}>{formatMoney(totalEarnings)}</span>
+                        </div>
+                    </div>
+                </Card>
+
+                <div className="space-y-4">
+                    <Card title="Career Impact" icon={TrendingUp}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="text-slate-400 text-sm">Fan Base</div>
+                            <div className={`font-bold ${fightResult.fanChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {fightResult.fanChange > 0 ? '+' : ''}{fightResult.fanChange}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-slate-400 text-sm">Rank Update</div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500 line-through text-xs">#{player.rank}</span>
+                                <span className="text-white font-bold text-lg">#{fightResult.newRank}</span>
+                            </div>
+                        </div>
+                    </Card>
+                    
+                    <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 text-center">
+                        <div className="text-slate-500 text-xs uppercase mb-1">New Record</div>
+                        <div className="text-2xl font-mono font-black text-white">
+                            {player.record.w + (fightResult.result === 'win' ? 1 : 0)} - 
+                            {player.record.l + (fightResult.result === 'loss' ? 1 : 0)} - 
+                            {player.record.d + (fightResult.result === 'draw' ? 1 : 0)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <Button onClick={commitResults} className="w-full py-4 text-xl mt-8">
+                Return to Gym
+            </Button>
+        </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
+      <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
+        {gameState === 'CREATION' && <CreationScreen />}
+        {gameState === 'INTRO' && <IntroScreen />}
+        {gameState === 'DASHBOARD' && <Dashboard />}
+        {gameState === 'LEADERBOARD' && <LeaderboardScreen />}
+        {gameState === 'CAMP' && <CampScreen />}
+        {gameState === 'EVENT_VIEW' && <EventViewScreen />}
+        {gameState === 'FIGHT_PREP' && <FightPrepScreen />}
+        {gameState === 'FIGHT' && <FightScreen />}
+        {gameState === 'SCORING' && <ScoringScreen />}
+        {gameState === 'POST_FIGHT' && <PostFightScreen />}
+      </div>
+    </div>
+  );
+}
